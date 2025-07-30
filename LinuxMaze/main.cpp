@@ -84,7 +84,7 @@ enum class Cell {
     TNT = 6
 };
 
-
+vector<string> playerName = {"1", "2"}; // 玩家昵称
 
 
 class Maze {
@@ -109,6 +109,7 @@ private:
     vector<vector<Cell>> grid;       // 地图
     pair<int, int> start;            // 起点坐标
     pair<int, int> end;              // 终点坐标
+    
     chrono::minutes level_time_limit = chrono::minutes(10);      // 时间限制功能的参数
     chrono::time_point<chrono::system_clock> startTime, endTime; // 游戏开始时间和必须要结束的时间（不是实际结束的世界）
 
@@ -132,18 +133,12 @@ public:
         return walls;
     }
 
-
-    // Maze() : grid(height, vector<Cell>(width, Cell::WALL)), visibility(2, 1), tntNumber(2, 0), swifthessTime(2, 0) {
-        
-    // }
-    // name("Default"), 
-    // Maze() : grid(height, vector<Cell>(width, Cell::WALL)) {}
     Maze() : grid(height, vector<Cell>(width, Cell::WALL)) {
-        visibility = vector<int>(2, 1);      // 默认2个玩家，初始视野1
-        tntNumber = vector<int>(2, 0);       // 默认2个玩家，初始TNT数量0
-        swifthessTime = vector<int>(2, 0);   // 默认2个玩家，初始迅捷时间0
-        playerX = vector<int>(2, 0);         // 默认2个玩家
-        playerY = vector<int>(2, 0);         // 默认2个玩家
+        visibility = vector<int>(2, 1);
+        tntNumber = vector<int>(2, 0);
+        swifthessTime = vector<int>(2, 0);
+        playerX = vector<int>(2, 0);
+        playerY = vector<int>(2, 0);
     }
 
     // 生成迷宫
@@ -268,7 +263,7 @@ public:
 
         // 随机刷新夜视药水
         // 大地图玩家很难找到药水，所以概率要更高
-        if (getRandomNumber(1, (width + height) / 5) == 1) {
+        if (getRandomNumber(1, (width + height) / 10) == 1) {
             int y = getRandomNumber(0, height - 1);
             int x = getRandomNumber(0, width - 1);
             if (grid[y][x] == Cell::PATH) {
@@ -291,25 +286,25 @@ public:
                 grid[y][x] = Cell::TNT;
             }
         }
-        bool tag, printTag;
-        for (int y = 0; y < height; ++y) {
-            for (int x = 0; x < width; ++x) {
+        
+        bool tag; // 这个单元格是否已经打印了的标志变量
+        for (int y = 0; y < height; y++) {    // 遍历整个地图以显示到终端
+            for (int x = 0; x < width; x++) {
                 tag = true;
-                printTag = false;
-                for (int k = 0; k < playerNumber; k++) {
-                    if (printTag) {
-                        if (y == playerY[k] && x == playerX[k] && grid[y][x] != Cell::START) {
-                            putchar(k + '1'), putchar(' ');
-                        }
-                        continue;
-                    }
-                    
+                for (int k = 0; k < playerNumber; k++) {// 遍历每个玩家
                     if (playerY[k] - visibility[k] <= y && playerY[k] + visibility[k] >= y && playerX[k] - visibility[k] <= x && playerX[k] + visibility[k] >= x) {
-                        tag = false;
-                        printTag = true;
-                        if (y == playerY[k] && x == playerX[k]) {
+                        // 如果这个单元格在这个玩家的视野范围内就显示其内容。
+                        tag = false; // 修改标志变量，因为接下来肯定输出非 "??" 的内容
+                        if (y == playerY[k] && x == playerX[k]) { // 如果这里是玩家，根据情况输出。
+                            getItem(y, x, k);        // 一定要先捡物品
+                            if (playerNumber == 1) { // 单人模式输出 %
+                                putchar('%'), putchar(' ');
+                                break;
+                            }
+                            // 多人模式输出玩家序号
+                            // 如果多个玩家重叠，输出 %
                             int cnt = 0;
-                            for (int l = k; l < playerNumber; l++) {
+                            for (int l = 0; l < playerNumber; l++) {
                                 if (y == playerY[l] && x == playerX[l]) {
                                     cnt++;
                                     if (cnt >= 2) {
@@ -317,15 +312,27 @@ public:
                                     }
                                 }
                             }
-                            if (cnt >= 2 || playerNumber == 1) {
+                            if (cnt >= 2) {
                                 putchar('%'), putchar(' ');
+                                break;
                             }
-                            else {
-                                putchar(k + '1'), putchar(' ');
-                            }
-                            getItem(y, x, k);
-                            continue;
+                            putchar(k + '1'), putchar(' ');
+                            break;
                         }
+                        // 如果这里是任意一个玩家，则输出玩家序号而不是其他值。
+                        bool tag2 = false;
+                        for (int l = 0; l < playerNumber; l++) {
+                            if (y == playerY[l] && x == playerX[l]) {
+                                putchar(l + '1'), putchar(' ');
+                                tag2 = true;
+                                break;
+                            }
+                        }
+                        if (tag2) {
+                            break;
+                        }
+
+                        // 如果这里不是任何玩家，输出这个单元格的内容。
                         switch (grid[y][x]) {
                             case Cell::WALL:
                                 printf("██");
@@ -340,13 +347,7 @@ public:
                                 putchar('E'), putchar(' ');
                                 break;
                             case Cell::NIGHT_VISION_POTION:
-                                if (visibility[k] < maxVisibility) {
-                                    putchar('N'), putchar(' ');
-                                }
-                                else {
-                                    grid[y][x] = Cell::PATH;
-                                    putchar(' '), putchar(' ');
-                                }
+                                putchar('N'), putchar(' ');
                                 break;
                             case Cell::SWIFTNESS_POTION:
                                 putchar('W'), putchar(' ');
@@ -355,54 +356,61 @@ public:
                                 putchar('T'), putchar(' ');
                                 break;
                         }
+                        break;
                     }
                 }
+
+                // 如果这里不在玩家的视野内，输出 "??"
                 if (tag) {
                     putchar('?'), putchar('?');
                 }
-                bool rn = getRandomNumber(1, 20 * (((width + height) / 2) / 5)) == 1;
-                if (grid[y][x] == Cell::NIGHT_VISION_POTION && rn) {
-                    grid[y][x] = Cell::PATH;
-                }
-                else if (grid[y][x] == Cell::SWIFTNESS_POTION && rn) {
-                    grid[y][x] = Cell::PATH;
-                }
-                else if (grid[y][x] == Cell::TNT && rn) {
-                    grid[y][x] = Cell::PATH;
+
+                // 如果这里是物品，则随即消失，防止整个地图都是物品。
+                if (grid[y][x] != Cell::WALL && grid[y][x] != Cell::PATH) {
+                    bool rn = getRandomNumber(1, 20 * (((width + height) / 2) / 5)) == 1;
+                    if (grid[y][x] == Cell::NIGHT_VISION_POTION && rn) {
+                        grid[y][x] = Cell::PATH;
+                    }
+                    else if (grid[y][x] == Cell::SWIFTNESS_POTION && rn) {
+                        grid[y][x] = Cell::PATH;
+                    }
+                    else if (grid[y][x] == Cell::TNT && rn) {
+                        grid[y][x] = Cell::PATH;
+                    }
                 }
             }
             putchar('\n');
         }
 
+        // 输出剩余时间
         auto remaining = endTime - chrono::system_clock::now();
-
-        // 分别提取小时、分钟、秒
-        auto hours = chrono::duration_cast<chrono::hours>(remaining);
+        auto hours = chrono::duration_cast<chrono::hours>(remaining); // 分别提取小时、分钟、秒
         remaining -= hours;
         auto minutes = chrono::duration_cast<chrono::minutes>(remaining);
         remaining -= minutes;
         auto seconds = chrono::duration_cast<chrono::seconds>(remaining);
-
-        // 格式化输出为HH:MM:SS
-        cout << "剩余时间: " 
+        cout << "剩余时间: "
             << setfill('0') << setw(2) << hours.count() << ":"
             << setw(2) << minutes.count() << ":" 
-            << setw(2) << seconds.count() << '\n';
+            << setw(2) << seconds.count() << '\n'; // 格式化输出为 HH:MM:SS
         
+        // 输出其他信息
         for (int i = 0; i < playerNumber; i++) {
-            cout << " === 玩家" << i + 1 << " ===\n";
-            cout << "视野等级：" << visibility[i] << "/5\n";
+            if (playerNumber != 1) {
+                cout << " === " << playerName[i] << " ===\n"; // 多个玩家显示玩家信息，单人模式就不显示了。
+            }
+            cout << "视距等级: Lv" << visibility[i] << "/5\n";
             if (swifthessTime[i] != 0) {
-                cout << "迅捷：" << swifthessTime[i] << endl;
+                cout << "速度剩余次数: " << swifthessTime[i] << "次" << endl;
             }
             if (tntNumber[i] != 0) {
-                cout << "TNT：" << tntNumber[i] << endl;
+                cout << "TNT数量: x" << tntNumber[i] << endl;
             }
             putchar('\n');
         }
     }
 
-    inline void playerMove(int d, int player) {
+    inline bool playerMove(int d, int player) {
         /*
         处理玩家移动的逻辑
         d 代表按键 方向
@@ -410,24 +418,42 @@ public:
         1    a    左
         2    s    下
         3    d    右
-        */
-        const bool NOT_WALL = grid[playerY[player] + dy[d]][playerX[player] + dx[d]] != Cell::WALL;
 
+        返回true代表移动了。
+        */
         if (inBounds(playerX[player] + dx[d], playerY[player] + dy[d])) {
-            if (swifthessTime[player] && inBounds(playerX[player] + (dx[d] * 2), playerY[player] + (dy[d] * 2)) && getRandomNumber(1, 2) == 1) {
-                if (grid[playerY[player] + (dy[d] * 2)][playerX[player] + (dx[d] * 2)] != Cell::WALL && NOT_WALL) {
-                    playerX[player] += dx[d] * 2, playerY[player] += dy[d] * 2;
+            const bool NOT_WALL = grid[playerY[player] + dy[d]][playerX[player] + dx[d]] != Cell::WALL;
+            if (swifthessTime[player]) {
+                if (inBounds(playerX[player] + (dx[d] * 2), playerY[player] + (dy[d] * 2)) && getRandomNumber(1, 2) == 1) {
+                    if (grid[playerY[player] + (dy[d] * 2)][playerX[player] + (dx[d] * 2)] != Cell::WALL && NOT_WALL) {
+                        playerX[player] += dx[d] * 2, playerY[player] += dy[d] * 2;
+                        swifthessTime[player]--;
+                        return true;
+                    }
+                    else if (NOT_WALL){
+                        playerX[player] += dx[d], playerY[player] += dy[d];
+                        swifthessTime[player]--;
+                        return true;
+                    }
+                    return false;
                 }
-                else if (NOT_WALL){
-                    playerX[player] += dx[d], playerY[player] += dy[d];
+                else {
+                    if (NOT_WALL) {
+                        playerX[player] += dx[d], playerY[player] += dy[d];
+                        swifthessTime[player]--;
+                        return true;
+                    }
+                    return false;
                 }
-                swifthessTime[player]--;
             } else {
                 if (NOT_WALL) {
                     playerX[player] += dx[d], playerY[player] += dy[d];
+                    return true;
                 }
+                return false;
             }
         }
+        return false;
     }
 
     void DetonateTNT(int player) {
@@ -461,7 +487,7 @@ public:
             bool tag = false;
             for (int i = 0; i < playerNumber; i++) {
                 if (playerY[i] == end.second && playerX[i] == end.first) {
-                    cout << "\n恭喜玩家" << i + 1 << "成功逃出迷宫！" << endl;
+                    cout << "\n恭喜 " << playerName[i] << " 成功逃出迷宫！" << endl;
                     cout << "按任意键继续..." << endl;
                     (void)system(("firefox " + (string)(filesystem::current_path() / "gongxi.jpeg")).c_str());
                     (void)getch();
@@ -472,38 +498,46 @@ public:
             if (tag) {
                 break;
             }
-            char ch = getch();
-            switch(ch) {
-                case 'w':
-                    playerMove(0, 0);
+            bool tag2 = false;
+            while (true) {
+                char ch = getch();
+                switch(ch) {
+                    case 'w':
+                        tag2 = playerMove(0, 0);
+                        break;
+                    case 'd':
+                        tag2 = playerMove(1, 0);
+                        break;
+                    case 's':
+                        tag2 = playerMove(2, 0);
+                        break;
+                    case 'a':
+                        tag2 = playerMove(3, 0);
+                        break;
+                    case 'i':
+                        tag2 = playerMove(0, 1);
+                        break;
+                    case 'l':
+                        tag2 = playerMove(1, 1);
+                        break;
+                    case 'k':
+                        tag2 = playerMove(2, 1);
+                        break;
+                    case 'j':
+                        tag2 = playerMove(3, 1);
+                        break;
+                    case 'q':
+                        DetonateTNT(0);
+                        tag2 = true;
+                        break;
+                    case 'u':
+                        DetonateTNT(1);
+                        tag2 = true;
+                        break;
+                }
+                if (tag2) {
                     break;
-                case 'd':
-                    playerMove(1, 0);
-                    break;
-                case 's':
-                    playerMove(2, 0);
-                    break;
-                case 'a':
-                    playerMove(3, 0);
-                    break;
-                case 'i':
-                    playerMove(0, 1);
-                    break;
-                case 'l':
-                    playerMove(1, 1);
-                    break;
-                case 'k':
-                    playerMove(2, 1);
-                    break;
-                case 'j':
-                    playerMove(3, 1);
-                    break;
-                case 'q':
-                    DetonateTNT(0);
-                    break;
-                case 'u':
-                    DetonateTNT(1);
-                    break;
+                }
             }
         }
     }
@@ -516,6 +550,8 @@ void settings() {
         cout << " ---设置--- " << endl << endl;
         cout << "[0] 宽度：" << width << endl;
         cout << "[1] 高度：" << height << endl;
+        cout << "[2] 玩家1 昵称：" << playerName[0] << endl;
+        cout << "[3] 玩家2 昵称：" << playerName[1] << endl;
         cout << "[Esc] 返回" << endl;
         char ch = getch();
         if (ch == 27) {
@@ -550,6 +586,16 @@ void settings() {
                 x++;
             }
             height = x;
+        }
+        else if (ch == '2') {
+            clear();
+            cout << "请输入玩家1昵称：";
+            cin >> playerName[0];
+        }
+        else if (ch == '3') {
+            clear();
+            cout << "请输入玩家2昵称：";
+            cin >> playerName[1];
         }
     }
 }
